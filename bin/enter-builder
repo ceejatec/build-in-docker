@@ -1,0 +1,21 @@
+#!/bin/bash
+
+cat <<EOF > ~/.docker-bashentry
+export TERM=xterm-256color
+stty rows $(stty size | sed -e 's/ / columns /')
+
+if [ -e ${HOME}/.docker-bashrc ]; then
+  . ${HOME}/.docker-bashrc
+fi
+EOF
+
+echo "Entering builder container..."
+echo "To exit, type 'exit' or press Ctrl-D."
+echo
+
+docker exec -it \
+  --user couchbase \
+  --env HOME=/home/couchbase \
+  --workdir $(pwd) \
+  builder \
+  bash --init-file ${HOME}/.docker-bashentry

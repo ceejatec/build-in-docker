@@ -1,0 +1,98 @@
+#!/bin/bash -e
+
+IMAGE=${1-couchbasebuild/server-linux-build:latest}
+
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+# Stop and remove any existing builder container
+docker rm -f builder &> /dev/null || true
+
+# Function to create (if necessary) an empty, persistent Docker volume
+# with appropriate permissions.
+ensure_volume() {
+  local volume=$1
+
+  # If volume already exists, do nothing.
+  if docker volume inspect ${volume} &> /dev/null; then
+    return
+  fi
+
+  echo "Creating empty volume: ${volume}"
+  docker run --rm -v ${volume}:/volume alpine:3.12 sh -c \
+    "chown -R 1000:1000 /volume && rm -rf /volume/*"
+}
+
+# Function to create an empty .dir in the user's home directory if it
+# doesn't exist.
+ensure_dotdir() {
+  local dir=$1
+
+  if [ ! -d ${HOME}/.${dir} ]; then
+    mkdir ${HOME}/.${dir}
+  fi
+}
+
+# Function to add mount arguments for a cache directory containing
+# platform-specific parts (eg, should not be shared between a Mac host
+# and Linux container).
+mount_platform_cache() {
+  local cache=$1
+
+  # If we're running on Linux with UID 1000, we can share the various
+  # caches from our home directory. Otherwise, use a persistent Docker
+  # volume instead.
+  if [[ "$(uname)" == "Linux" && "$(id -u)" == "1000" ]]; then
+    ensure_dotdir ${cache}
+    mount_args+=(-v ${HOME}/.${cache}:/home/couchbase/.${cache})
+  else
+    ensure_volume builder_${cache}
+    mount_args+=(-v builder_${cache}:/home/couchbase/.${cache})
+  fi
+}
+
+# Initialize the array of mount arguments with the mount of the user's
+# home directory.
+mount_args=(-v ${HOME}:${HOME})
+
+# Also mount our entrypoint script
+mount_args+=(-v ${SCRIPT_DIR}/builder_entrypoint.sh:/var/run/entrypoint.sh:ro)
+
+# On Linux, we can mount /var/run/docker.sock and also create the
+# "magic" serverbuild_optcouchbase volume for Server builds. On macOS,
+# it's unclear how to achieve this.
+if [[ "$(uname)" == "Linux" ]]; then
+  mount_args+=(-v /var/run/docker.sock:/var/run/docker.sock)
+
+  # We want a clean /opt/couchbase every time
+  docker volume rm -f serverbuild_optcouchbase &> /dev/null || true
+  ensure_volume serverbuild_optcouchbase
+  mount_args+=(-v serverbuild_optcouchbase:/opt/couchbase)
+fi
+
+mount_platform_cache cbdepcache
+mount_platform_cache cbdepscache
+mount_platform_cache m2
+mount_platform_cache ccache
+
+# Create and mount the .reporef directory - always shared with host
+ensure_dotdir reporef
+mount_args+=(-v ${HOME}/.reporef:/home/couchbase/.reporef)
+
+# Create and mount the `/home/couchbase/work` directory - always in a
+# Docker volume
+ensure_volume builder_work
+mount_args+=(-v builder_work:/home/couchbase/work)
+
+echo "Starting builder with image: ${IMAGE}"
+docker run -d \
+  --init \
+  ${mount_args[@]} \
+  -p 8091-8095:8091-8095 \
+  --name builder \
+  --restart unless-stopped \
+  --user 0:0 \
+  --entrypoint "/var/run/entrypoint.sh" \
+  --env "HOSTHOME=${HOME}" \
+  ${IMAGE} unlikely-argument
+
+echo
