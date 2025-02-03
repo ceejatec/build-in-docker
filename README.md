@@ -20,6 +20,8 @@ same directory.
     Starting builder with image: couchbasebuild/server-linux-build:latest
     77ea959898a4f3c5df36c7fe7b86d8dae097d64320c5e428495aac1fe347dcb5
 
+    Container is running as 'builder'. IP address is: 172.17.0.3
+
     macbook% cd ~/repos/morpheus
     macbook% pwd
     /Users/ceej/repos/morpheus
@@ -123,7 +125,7 @@ so on.
 
 ## Notes and Potential Issues
 
-### ssh
+### ssh keys
 
 `create-builder` will *copy* the contents of your `~/.ssh` directory to
 `/home/couchbase/.ssh` in the container. This will allow the `couchbase`
@@ -183,6 +185,22 @@ both the `git` and `repo` commands to operate identically.
 > repeatedly while running `repo sync`. This is because `repo` is using
 > ssh options that are too new for the `ssh` in that container image.
 > These messages may be ignored; `repo sync` will still succeed.
+
+### Networking
+
+`create-builder` will output the IP address of the `builder` container.
+On Linux, you can access this IP address directly; for instance, if you
+launch Server inside the container, it will be available at
+`http://172.17.0.3:8091/` (or whatever IP is shown).
+
+On macOS, container IPs are not directly accessible from the Mac host.
+A quick workaround for this is to install the following tool:
+
+    brew install chipmk/tap/docker-mac-net-connect
+    sudo brew services start chipmk/tap/docker-mac-net-connect
+
+Once this is done, the IPs should be available in the same way as they
+are on Linux. (Thanks Vesko for discovering and testing this!)
 
 ### `/home/couchbase/work` in the container
 

@@ -87,12 +87,15 @@ echo "Starting builder with image: ${IMAGE}"
 docker run -d \
   --init \
   ${mount_args[@]} \
-  -p 8091-8095:8091-8095 \
   --name builder \
   --restart unless-stopped \
   --user 0:0 \
   --entrypoint "/var/run/entrypoint.sh" \
   --env "HOSTHOME=${HOME}" \
   ${IMAGE} unlikely-argument
+
+echo
+echo -n "Container is running as 'builder'. IP address is: "
+docker inspect builder --format '{{.NetworkSettings.Networks.bridge.IPAddress}}'
 
 echo
