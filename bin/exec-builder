@@ -1,0 +1,8 @@
+#!/bin/bash
+
+DOCKER_CLI_HINTS=false docker exec -it \
+  --user couchbase \
+  --env HOME=/home/couchbase \
+  --workdir $(pwd) \
+  builder \
+  "$@"
