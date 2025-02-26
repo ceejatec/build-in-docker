@@ -13,7 +13,7 @@ echo "Entering builder container..."
 echo "To exit, type 'exit' or press Ctrl-D."
 echo
 
-docker exec -it \
+DOCKER_CLI_HINTS=false docker exec -it \
   --user couchbase \
   --env HOME=/home/couchbase \
   --workdir $(pwd) \
